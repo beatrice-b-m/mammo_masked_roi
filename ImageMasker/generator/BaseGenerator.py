@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+import cv2 as cv
 
 
 class BaseGenerator:
@@ -13,14 +14,14 @@ class BaseGenerator:
         self.out_df = None
         self.n_images = len(df)
 
-        # save image queue, save bool, and the save dir
+        # save image queue and the save dir
         self.image_queue = image_queue
         self.save_dir = save_dir
 
         # initialize cols/rows arrays to record tissue distributions
         # make them larger than we need, then crop to max img cols/rows after opening all imgs
-        self.cols_array = np.zeros((self.n_images, 6000), np.int16)
-        self.rows_array = np.zeros((self.n_images, 6000), np.int16)
+        self.cols_array = np.zeros((2, self.n_images, 6000), np.int16)
+        self.rows_array = np.zeros((2, self.n_images, 6000), np.int16)
         self.crop_cols_array = None
         self.crop_rows_array = None
 
@@ -29,7 +30,22 @@ class BaseGenerator:
         self.target_size = target_size
         self.plot_out = plot_out
 
+        # load roi dicts
+        self.cc_roi_dict = {}
+        self.mlo_roi_dict = {}
+
         print('finish this bit! :)')
+
+
+    def get_view_axis_idx(self, data):
+        if data.ViewType == 'CC':
+            view_axis_idx = 0
+        elif data.ViewType == 'MLO':
+            view_axis_idx = 1
+        else:
+            raise ValueError(f"view type '{data.ViewType}' is not CC or MLO, please filter the dataframe...")
+
+        return view_axis_idx
 
 
     def save_image(self, masked_img, png_filename):
@@ -158,23 +174,28 @@ class BaseGenerator:
     def resize_image(self, img):
         """
         called by both generators
+        might be worth implementing a cropping function in this?
         """
         # create a black base image
-        out_img = np.zeros(self.target_size, dtype=np.uint8)
+        out_img = np.zeros(self.target_size + (3,), dtype=np.uint8)
 
         # find which dimension needs to be resized most to fit
         y_scale_factor = img.shape[0] / self.target_size[0]
         x_scale_factor = img.shape[1] / self.target_size[1]
+
+        # find which scale factor is the largest
+        max_scale_factor = max(y_scale_factor, x_scale_factor)
         
         # get the actual image shape to resize to
-        img_resize_shape = (int(img.shape[0] / y_scale_factor), int(img.shape[1] / x_scale_factor), 3)
+        img_resize_shape = (int(img.shape[0] / max_scale_factor), int(img.shape[1] / max_scale_factor))
 
         # resize the image
-        resized_img = np.resize(img, img_resize_shape, )
+        resized_img = cv.resize(img, dsize=img_resize_shape, interpolation=cv.INTER_AREA)
 
-        """
-        FINISH THIS FUNCTION !!!!!!!!!!!!!!!!!!!
-        """
+        # apply resized image to black base
+        out_img[:img_resize_shape[0], :img_resize_shape[1], :] = resized_img
+        
+        return out_img
 
 
     def plot_images(img, masked_img_list):

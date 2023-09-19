@@ -17,6 +17,7 @@ class PosGenerator(BaseGenerator):
         # start generator loop
         self.generator_loop()
 
+
     def generator_loop(self): # mask_factor_list, target_size, save_out: bool, plot_out: bool
         # get output dataframe
         self.out_df = self.df.copy()
@@ -27,8 +28,7 @@ class PosGenerator(BaseGenerator):
             img = cv.imread(data.png_path)
 
             # get img view type
-            view_type = data.ViewType
-            print("FINISH THE VIEW_TYPE IMPLEMENTATION")
+            view_axis_idx = self.get_view_axis_idx(data)
             
             # load roi
             roi_list = extract_roi(data.ROI_coords)
@@ -42,7 +42,7 @@ class PosGenerator(BaseGenerator):
                 roi_list = switch_coord_side(roi_list, img.shape)
             
             # record roi and tissue distribution
-            self.record_roi_tissue_dist(img, roi_list, i)
+            self.record_roi_tissue_dist(img, view_axis_idx, roi_list, i)
 
             # initalize masked_img_list
             masked_img_list = []
@@ -79,7 +79,7 @@ class PosGenerator(BaseGenerator):
             self.save_attrs()
 
 
-    def record_roi_tissue_dist(self, img, roi_list, i):
+    def record_roi_tissue_dist(self, img, view_axis_idx, roi_list, i):
         """
         Move to PosGenerator.py
         """
@@ -101,19 +101,22 @@ class PosGenerator(BaseGenerator):
         px_count_rows = (img[:, :, 0] > bg_threshold).sum(axis=1)
 
         # record current tissue distribution to main arrays
-        self.cols_array[i, :img_cols] = px_count_cols
-        self.rows_array[i, :img_rows] = px_count_rows
+        self.cols_array[view_axis_idx, i, :img_cols] = px_count_cols
+        self.rows_array[view_axis_idx, i, :img_rows] = px_count_rows
 
         # record current roi_list to roi_dict
-        self.roi_dict[i] = roi_list
+        if view_axis_idx == 0:
+            self.cc_roi_dict[i] = roi_list
+        else:
+            self.mlo_roi_dict[i] = roi_list
 
 
     def crop_out_arrays(self):
         """
         crop cols/rows arrays to the max recorded size
         """
-        self.crop_cols_array = self.cols_array[:, :self.max_n_cols]
-        self.crop_rows_array = self.rows_array[:, :self.max_n_rows]
+        self.crop_cols_array = self.cols_array[:, :, :self.max_n_cols]
+        self.crop_rows_array = self.rows_array[:, :, :self.max_n_rows]
 
     def save_attrs(self):
         """
@@ -129,9 +132,11 @@ class PosGenerator(BaseGenerator):
             self.crop_rows_array
         )
 
-        # save roi dict to .json file
-        with open(os.path.join(self.save_dir, 'roi_dict.json'), 'w') as json_dict:
-            json.dump(self.roi_dict, json_dict)
+        # save roi dicts to .json files
+        with open(os.path.join(self.save_dir, 'cc_roi_dict.json'), 'w') as json_dict:
+            json.dump(self.cc_roi_dict, json_dict)
+        with open(os.path.join(self.save_dir, 'mlo_roi_dict.json'), 'w') as json_dict:
+            json.dump(self.mlo_roi_dict, json_dict)
 
 
 def switch_coord_side(roi_list, full_shape):

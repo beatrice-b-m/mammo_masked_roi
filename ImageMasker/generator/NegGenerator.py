@@ -27,11 +27,20 @@ class NegGenerator(BaseGenerator):
         self.crop_rows_array = np.load(os.path.join(self.save_dir, 'rows_arr.npy'))
         
         # load roi dict from .json file
-        roi_dict_path = os.path.join(self.save_dir, 'roi_dict.json')
-        with open(roi_dict_path, 'r') as json_dict:
-            self.roi_dict = json.load(json_dict)
+        cc_roi_dict_path = os.path.join(self.save_dir, 'cc_roi_dict.json')
+        with open(cc_roi_dict_path, 'r') as json_dict:
+            self.cc_roi_dict = json.load(json_dict)
 
-        print('attributes loaded...')
+        mlo_roi_dict_path = os.path.join(self.save_dir, 'mlo_roi_dict.json')
+        with open(mlo_roi_dict_path, 'r') as json_dict:
+            self.mlo_roi_dict = json.load(json_dict)
+
+        # check that crop_cols/rows_array and roi_dict were loaded successfully
+        if all([self.crop_cols_array, self.crop_rows_array, self.cc_roi_dict, self.mlo_roi_dict]):
+            print('roi matching attributes loaded successfully...')
+        else:
+            print('error while loading roi matching attributes...')
+
 
     def generator_loop(self, load_existing):
         # get output dataframe
@@ -43,18 +52,14 @@ class NegGenerator(BaseGenerator):
         # if load existing, load existing tissue dist arrays and roi dict
         if load_existing:
             self.load_attrs()
-            # check that crop_cols/rows_array and roi_dict were loaded successfully
-            if (self.crop_cols_array is not None) &\
-            (self.crop_rows_array is not None) &\
-            (self.roi_dict is not None):
-                print('roi matching attributes loaded successfully...')
-            else:
-                print('error while loading roi matching attributes...')
         
         # iterate over dataframe
         for i, data in tqdm(self.df.iterrows(), total=len(self.df)):
             # load img
             img = cv.imread(data.png_path)
+
+            # get img view type
+            view_axis_idx = self.get_view_axis_idx(data)
 
             # check img laterality
             laterality = self.check_side(img)
@@ -64,10 +69,13 @@ class NegGenerator(BaseGenerator):
                 img = np.fliplr(img)
             
             # get tissue stats and find idx with lowest mse
-            min_idx = self.find_min_tissue_dist_mse(img)
+            min_idx = self.find_min_tissue_dist_mse(img, view_axis_idx)
             
-            # look up roi
-            new_roi_list = self.roi_dict.get(str(min_idx))
+            # look up roi in corresponding dict
+            if view_axis_idx == 0:
+                new_roi_list = self.cc_roi_dict.get(str(min_idx))
+            else:
+                new_roi_list = self.mlo_roi_dict.get(str(min_idx))
             
             # initalize vars to track masked imgs and their save paths
             masked_img_list = []
@@ -100,7 +108,7 @@ class NegGenerator(BaseGenerator):
         self.send_stop_signal()
 
 
-    def find_min_tissue_dist_mse(self, img):
+    def find_min_tissue_dist_mse(self, img, view_axis_idx):
         """
         Move to NegGenerator.py
         """
@@ -120,8 +128,8 @@ class NegGenerator(BaseGenerator):
         px_count_rows_pad[:px_count_rows.shape[0]] = px_count_rows
         
         # calculate mse for each col/row distribution array
-        cols_mse_array = compute_mse(px_count_cols_pad, self.crop_cols_array)
-        rows_mse_array = compute_mse(px_count_rows_pad, self.crop_rows_array)
+        cols_mse_array = compute_mse(px_count_cols_pad, self.crop_cols_array[view_axis_idx, :, :])
+        rows_mse_array = compute_mse(px_count_rows_pad, self.crop_rows_array[view_axis_idx, :, :])
         
         # get array of the average cols/rows mse
         avg_mse_array = (cols_mse_array + rows_mse_array) / 2
@@ -139,5 +147,12 @@ def compute_mse(array_a, array_b):
     n = array_b.shape[0]
     mse_values = np.empty(n)
     for i in range(n):
-        mse_values[i] = np.mean((array_b[i] - array_a) ** 2)
+        # if any values in array b are non-zero calculate mse
+        if array_b[i].any():
+            mse_values[i] = np.mean((array_b[i] - array_a) ** 2)
+            
+        # otherwise mse is positive infinity
+        else:
+            mse_values[i] = np.inf
+        
     return mse_values
