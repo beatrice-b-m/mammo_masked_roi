@@ -1,8 +1,8 @@
 import queue
 import threading
-from generator.PosGenerator import PosGenerator
-from generator.NegGenerator import NegGenerator
-from saver.ImageSaver import ImageSaver
+from ImageMasker.generator.PosGenerator import PosGenerator
+from ImageMasker.generator.NegGenerator import NegGenerator
+from ImageMasker.saver.ImageSaver import ImageSaver
 
 
 class DataFrameMasker:

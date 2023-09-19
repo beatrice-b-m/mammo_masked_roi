@@ -1,9 +1,9 @@
-import tqdm
+from tqdm import tqdm
 import cv2 as cv
 import numpy as np
 import os
 import json
-from generator.BaseGenerator import BaseGenerator, MaskedImage
+from ImageMasker.generator.BaseGenerator import BaseGenerator, MaskedImage
 
 
 class PosGenerator(BaseGenerator):
@@ -26,6 +26,7 @@ class PosGenerator(BaseGenerator):
         for i, data in tqdm(self.df.iterrows(), total=self.n_images):
             # load img
             img = cv.imread(data.png_path)
+            print(f'\nimg {i} loaded')
 
             # get img view type
             view_axis_idx = self.get_view_axis_idx(data)
@@ -40,9 +41,12 @@ class PosGenerator(BaseGenerator):
             if laterality == 'R':
                 img = np.fliplr(img)
                 roi_list = switch_coord_side(roi_list, img.shape)
+                
+            print('laterality checked')
             
             # record roi and tissue distribution
             self.record_roi_tissue_dist(img, view_axis_idx, roi_list, i)
+            print('tissue dist recorded')
 
             # initalize masked_img_list
             masked_img_list = []
@@ -61,9 +65,13 @@ class PosGenerator(BaseGenerator):
                 if self.save_dir is not None:
                     self.save_image(masked_img, data.png_filename)
                     masked_img_paths += (masked_img.save_path + '$')
+                    
+            print('images generated')
             
             self.out_df.at[i, 'masked_factors'] = str(self.mask_factor_list)
             self.out_df.at[i, 'masked_png_paths'] = masked_img_paths
+            
+            print('dataframe updated')
                         
             if self.plot_out:
                 self.plot_images(img, masked_img_list)

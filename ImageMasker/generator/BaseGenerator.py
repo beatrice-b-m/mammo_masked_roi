@@ -5,7 +5,7 @@ import cv2 as cv
 
 
 class BaseGenerator:
-    def __init__(self, df, image_queue=None, save_dir=None, mask_factor_list=None, target_size=None, plot_out=False):
+    def __init__(self, df, image_queue, save_dir, mask_factor_list, target_size, plot_out):
         """
         base generator class which pos/neg inherit from
         """
@@ -38,12 +38,14 @@ class BaseGenerator:
 
 
     def get_view_axis_idx(self, data):
-        if data.ViewType == 'CC':
+        view = data.ViewPosition
+        
+        if view == 'CC':
             view_axis_idx = 0
-        elif data.ViewType == 'MLO':
+        elif view == 'MLO':
             view_axis_idx = 1
         else:
-            raise ValueError(f"view type '{data.ViewType}' is not CC or MLO, please filter the dataframe...")
+            raise ValueError(f"view type '{view}' is not CC or MLO, please filter your dataframe...")
 
         return view_axis_idx
 
@@ -198,7 +200,7 @@ class BaseGenerator:
         return out_img
 
 
-    def plot_images(img, masked_img_list):
+    def plot_images(self, img, masked_img_list):
         """
         also a static function included here for inheritance
         function to plot original and masked images

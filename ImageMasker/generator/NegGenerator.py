@@ -1,10 +1,10 @@
-import tqdm
+from tqdm import tqdm
 import cv2 as cv
 import numpy as np
 import os
 import json
 from numba import jit
-from generator.BaseGenerator import BaseGenerator, MaskedImage
+from ImageMasker.generator.BaseGenerator import BaseGenerator, MaskedImage
 
 
 class NegGenerator(BaseGenerator):
